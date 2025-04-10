@@ -4,12 +4,26 @@
 #include <TMCStepper.h>
 
 // Define pins
-#define EN_PIN 6            // Enable pin
+#define EN_PIN 36           // Enable pin
 #define DIR_PIN 4           // Direction pin
 #define STEP_PIN 5          // Step pin
 #define SERIAL_PORT Serial2 // UART port for TMC2209
-#define SERIAL_TX 18        // TX pin for UART
-#define SERIAL_RX 17        // RX pin for UART
+#define SERIAL_TX 38        // TX pin for UART
+#define SERIAL_RX 37        // RX pin for UART
+
+// #define SERIAL_TX 18     // TX pin for UART
+// #define SERIAL_RX 17        // RX pin for UART
+#define SERIAL_TX 37 // TX pin for UART
+#define SERIAL_RX 38 // RX pin for UART
+#define DIR2 12
+#define STEP2 13
+#define DIAG2 14
+#define DIR_PIN 47
+#define STEP_PIN 48
+#define DIAG1 21
+#define STEP_EN 36
+#define STEP_TX 38
+#define STEP_RX 37
 #define R_SENSE 0.11f       // Sense resistor value
 #define DRIVER_ADDRESS 0b00 // TMC2209 Driver address according to MS1 and MS2
 #define BUTTON_LEFT 42      // Left button pin
@@ -17,8 +31,8 @@
 #define BUTTON_SELECT 40    // Select button pin
 
 // Create TMC2209 driver instance
-TMC2209Stepper driver(&SERIAL_PORT, R_SENSE, DRIVER_ADDRESS);
-
+TMC2209Stepper driver(&SERIAL_PORT, R_SENSE, 0b00);
+TMC2209Stepper driver2(&SERIAL_PORT, R_SENSE, 0b10);
 // Motor specifications
 const int stepsPerRev = 200;                           // Steps per revolution for 1.8° stepper
 const int microsteps = 16;                             // Microstepping setting
@@ -39,8 +53,10 @@ void moveSteps(int steps)
   for (int i = 0; i < steps; i++)
   {
     digitalWrite(STEP_PIN, HIGH);
+    digitalWrite(STEP2, HIGH);
     delayMicroseconds(500);
     digitalWrite(STEP_PIN, LOW);
+    digitalWrite(STEP2, LOW);
     delayMicroseconds(500);
   }
 }
@@ -84,13 +100,15 @@ void setup()
   pinMode(EN_PIN, OUTPUT);
   pinMode(DIR_PIN, OUTPUT);
   pinMode(STEP_PIN, OUTPUT);
+  pinMode(DIR2, OUTPUT);
+  pinMode(STEP2, OUTPUT);
   digitalWrite(EN_PIN, HIGH); // Disable driver
   pinMode(BUTTON_LEFT, INPUT_PULLUP);
   pinMode(BUTTON_RIGHT, INPUT_PULLUP);
   pinMode(BUTTON_SELECT, INPUT_PULLUP);
 
   // Initialize UART for TMC2209
-  SERIAL_PORT.begin(115200, SERIAL_8N1, SERIAL_RX, SERIAL_TX);
+  SERIAL_PORT.begin(19200, SERIAL_8N1, SERIAL_RX, SERIAL_TX);
 
   // Initialize TMC2209 driver settings
   driver.begin();
@@ -100,6 +118,13 @@ void setup()
   driver.pdn_disable(true); // Use UART for configuration
   driver.I_scale_analog(false);
   driver.en_spreadCycle(false); // Enable stealthChop
+   driver2.begin();
+  driver2.toff(5);
+  driver2.rms_current(600); // Set motor RMS current
+  driver2.microsteps(microsteps);
+  driver2.pdn_disable(true); // Use UART for configuration
+  driver2.I_scale_analog(false);
+  driver2.en_spreadCycle(false); // Enable stealthChop
   if (microsteps == driver.microsteps())
   {
     Serial.println("Microsteps set successfully");
@@ -112,25 +137,8 @@ void setup()
   Serial.print("Microsteps: ");
   Serial.println(driver.microsteps());
 
-  // Initialize WiFi and ESP-NOW
-  WiFi.mode(WIFI_AP_STA); // Set to AP+STA mode
-  WiFi.softAP("ESP_NOW_RECEIVER"); // Set SSID
-  delay(100); // Short delay to ensure AP is up
-
-  Serial.print("Receiver SSID: ");
-  Serial.println("ESP_NOW_RECEIVER");
-
-  Serial.print("Receiver MAC Address: ");
-  Serial.println(WiFi.softAPmacAddress());
-
-  if (esp_now_init() != ESP_OK)
-  {
-    Serial.println("Error initializing ESP-NOW");
-    return;
-  }
-
   // Register the receive callback
-  esp_now_register_recv_cb(OnDataRecv);
+  // esp_now_register_recv_cb(OnDataRecv);
 
   // Move stepper 10 degrees to the right at startup
   digitalWrite(EN_PIN, LOW);                       // Enable driver
@@ -155,8 +163,8 @@ void loop()
   {
     Serial.println("Left button pressed");
     // Move motor to the left
-    digitalWrite(EN_PIN, LOW);                      // Enable driver
-    digitalWrite(DIR_PIN, LOW);                     // Set direction backward (left)
+    digitalWrite(EN_PIN, LOW);                       // Enable driver
+    digitalWrite(DIR_PIN, LOW);                      // Set direction backward (left)
     int stepsToMove = (microstepsPerRev * 45) / 360; // Move 45 degrees per press
     moveSteps(stepsToMove);
     digitalWrite(EN_PIN, HIGH); // Disable driver after movement
@@ -166,8 +174,8 @@ void loop()
   {
     Serial.println("Right button pressed");
     // Move motor to the right
-    digitalWrite(EN_PIN, LOW);                      // Enable driver
-    digitalWrite(DIR_PIN, HIGH);                    // Set direction forward (right)
+    digitalWrite(EN_PIN, LOW);                       // Enable driver
+    digitalWrite(DIR_PIN, HIGH);                     // Set direction forward (right)
     int stepsToMove = (microstepsPerRev * 45) / 360; // Move 45 degrees per press
     moveSteps(stepsToMove);
     digitalWrite(EN_PIN, HIGH); // Disable driver after movement
@@ -177,8 +185,8 @@ void loop()
   {
     Serial.println("Select button pressed");
     // Move motor 360 degrees to the right
-    digitalWrite(EN_PIN, LOW);                      // Enable driver
-    digitalWrite(DIR_PIN, HIGH);                    // Set direction forward (right)
+    digitalWrite(EN_PIN, LOW);                        // Enable driver
+    digitalWrite(DIR_PIN, HIGH);                      // Set direction forward (right)
     int stepsToMove = (microstepsPerRev * 360) / 360; // Move 360 degrees
     moveSteps(stepsToMove);
     digitalWrite(EN_PIN, HIGH); // Disable driver after movement
@@ -187,4 +195,9 @@ void loop()
 
   // Small delay to prevent rapid polling
   delay(50);
+    digitalWrite(EN_PIN, LOW);                       // Enable driver
+  int stepsToMove = (microstepsPerRev * 90) / 360; // Move 45 degrees per press
+  moveSteps(stepsToMove);
+    digitalWrite(EN_PIN, HIGH);                       // Enable driver
+  delay(2000);
 }
